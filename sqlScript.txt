@@ -1,0 +1,106 @@
+-- users 테이블 생성
+CREATE TABLE users (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  password VARCHAR(255) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  phone_number VARCHAR(20),
+  role ENUM('driver', 'passenger') NOT NULL,
+  points INT DEFAULT 0,
+  penalty_point INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  last_login TIMESTAMP
+);
+
+-- profiles 테이블 생성
+CREATE TABLE profiles (
+  user_id INT PRIMARY KEY,
+  profile_picture VARCHAR(255) COMMENT '프로필 사진의 URL, s3 연동 예정',
+  bio TEXT COMMENT '사용자 프로필 소개',
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- vehicles 테이블 생성
+CREATE TABLE vehicles (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  vehicle_model VARCHAR(255),
+  license_plate VARCHAR(255),
+  seating_capacity INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- locations 테이블 생성
+CREATE TABLE locations (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(255) NOT NULL COMMENT 'Location name, e.g., station name, university',
+  weight INT COMMENT '간선 가중치',
+  location_type ENUM('station', 'university') NOT NULL
+);
+
+-- ride_requests 테이블 생성
+CREATE TABLE ride_requests (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  driver_id INT,
+  start_location_id INT,
+  destination_location_id INT,
+  pickup_time DATETIME NOT NULL,
+  limited_passenger_nums INT COMMENT '최대 탑승객 수',
+  status ENUM('pending', 'matched', 'cancelled', 'completed') NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (driver_id) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (start_location_id) REFERENCES locations(id) ON DELETE SET NULL,
+  FOREIGN KEY (destination_location_id) REFERENCES locations(id) ON DELETE SET NULL
+);
+
+-- ride_passengers 테이블 생성
+CREATE TABLE ride_passengers (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  ride_request_id INT,
+  passenger_id INT,
+  status ENUM('waiting', 'onboard', 'arrived') NOT NULL COMMENT '탑승객 상태 관리',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (ride_request_id) REFERENCES ride_requests(id) ON DELETE CASCADE,
+  FOREIGN KEY (passenger_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- trips 테이블 생성
+CREATE TABLE trips (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  ride_request_id INT,
+  start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  end_time TIMESTAMP,
+  FOREIGN KEY (ride_request_id) REFERENCES ride_requests(id) ON DELETE CASCADE
+);
+
+-- reviews 테이블 생성
+CREATE TABLE reviews (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  match_id INT,
+  reviewer_id INT,
+  target_id INT,
+  rating INT CHECK (rating BETWEEN 1 AND 5) COMMENT '1 to 5 rating scale',
+  comment TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (match_id) REFERENCES ride_requests(id) ON DELETE CASCADE,
+  FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (target_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- point_holds 테이블 생성
+CREATE TABLE point_holds (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  ride_request_id INT,
+  amount INT NOT NULL,
+  tpye ENUM('charge', 'payment', 'refund', 'withdrawal') NOT NULL,
+  status ENUM('pending', 'completed', 'cancelled') NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (ride_request_id) REFERENCES ride_requests(id) ON DELETE CASCADE
+);
