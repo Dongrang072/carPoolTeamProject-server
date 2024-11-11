@@ -7,6 +7,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
+
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -16,22 +17,57 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
           throw new Error('JWT_SECRET is not defined in environment variables');
         }
 
-        const expiration = configService.get<string>('JWT_EXPIRATION');
-        const expirationSeconds = parseInt(expiration, 10);
+        const accessExpiration = parseInt(
+          configService.get<string>('JWT_ACCESS_EXPIRATION'),
+          10,
+        );
 
-        if (isNaN(expirationSeconds)) {
+        if (isNaN(accessExpiration)) {
           throw new Error('JWT_EXPIRATION must be a valid number');
         }
 
         console.log('JWT Configuration:', {
           secretDefined: !!secret,
-          expirationSeconds,
+          accessExpiration: accessExpiration,
         });
 
         return {
           secret,
           signOptions: {
-            expiresIn: expirationSeconds,
+            expiresIn: accessExpiration,
+          },
+        };
+      },
+    }),
+
+    //refreshToken
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const secret = configService.get<string>('JWT_SECRET');
+        if (!secret) {
+          throw new Error('JWT_SECRET is not defined in environment variables');
+        }
+
+        const refreshExpiration = parseInt(
+          configService.get<string>('JWT_REFRESH_EXPIRATION'),
+          10,
+        );
+
+        if (isNaN(refreshExpiration)) {
+          throw new Error('JWT_REFRESH_EXPIRATION must be a valid number');
+        }
+
+        console.log('JWT Configuration:', {
+          secretDefined: !!secret,
+          accessExpiration: refreshExpiration,
+        });
+
+        return {
+          secret,
+          signOptions: {
+            expiresIn: refreshExpiration,
           },
         };
       },

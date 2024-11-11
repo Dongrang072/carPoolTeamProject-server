@@ -53,6 +53,9 @@ export class User extends BaseEntity {
   @Column({ name: 'last_login', type: 'timestamp', nullable: true })
   lastLogin: Date;
 
+  @Column({ name: 'refresh_token', type: 'varchar', nullable: true })
+  refreshToken: string | null;
+
   @OneToOne(() => Profile, (profile) => profile.user)
   profile: Profile;
 }

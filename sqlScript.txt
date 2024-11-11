@@ -10,7 +10,8 @@ CREATE TABLE users (
   penalty_point INT DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  last_login TIMESTAMP
+  last_login TIMESTAMP,
+  refresh_token VARCHAR(255) NULL COMMENT '리프레시 토큰을 저장'
 );
 
 -- profiles 테이블 생성
@@ -97,10 +98,14 @@ CREATE TABLE point_holds (
   user_id INT,
   ride_request_id INT,
   amount INT NOT NULL,
-  tpye ENUM('charge', 'payment', 'refund', 'withdrawal') NOT NULL,
+  type ENUM('charge', 'payment', 'refund', 'withdrawal') NOT NULL,
   status ENUM('pending', 'completed', 'cancelled') NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
   FOREIGN KEY (ride_request_id) REFERENCES ride_requests(id) ON DELETE CASCADE
 );
+
+변경사항 points_hold 테이블에 tpye 오타 type으로 변경
+users table에 refreshToken 저장할 컬럼 추가
+jtw-config에 refreshToken을 위한 환경변수 추가  refreshToken과 accessToken을 위한
