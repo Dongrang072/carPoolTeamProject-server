@@ -163,6 +163,7 @@ export class AuthService {
 
   async deleteRefreshToken(user: User) {
     try {
+      console.log("user ", user.refreshToken);
       await this.userRepository.update(user.id, { refreshToken: null });
     } catch (error) {
       console.log(error);
