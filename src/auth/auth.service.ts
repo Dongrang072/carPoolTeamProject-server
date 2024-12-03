@@ -1,52 +1,69 @@
-import {
-  BadRequestException,
-  Injectable,
-  UnauthorizedException,
-  InternalServerErrorException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { UserRepository } from './user.repository';
-import { VehicleRepository } from './vehicle.repository';
-import { AuthCredentialDto } from './dto/auth-credential.dto';
+import { BadRequestException, Injectable, InternalServerErrorException, UnauthorizedException } from "@nestjs/common";
+import {InjectRepository} from "@nestjs/typeorm";
+import {UsersRepository} from "./repositories/users.repository";
+import {AuthCredentialDto} from "./dto/auth-credential.dto";
 import * as bcrypt from 'bcryptjs';
-import { JwtService } from '@nestjs/jwt';
-import { AuthLoginDto } from './dto/auth-login.dto';
-import { User } from './user.entity';
+import {JwtService} from "@nestjs/jwt";
+import { AuthLoginDto } from "./dto/auth-login.dto";
+import { VehicleInfoRepository } from "./repositories/vehicle-info.repository";
+import { Users } from "./entities/users.entity";
 import { ConfigService } from '@nestjs/config';
-import * as stream from 'node:stream';
+import { VehicleInfo } from "./entities/vehicle-info.entity";
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectRepository(UserRepository)
-    private userRepository: UserRepository,
-    private vehicleRepository: VehicleRepository,
+    @InjectRepository(UsersRepository)
+    private userRepository: UsersRepository,
+    @InjectRepository(VehicleInfoRepository)
+    private vehicleInfoRepository: VehicleInfoRepository,
     // jwt 서비스 등록
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
 
   // 회원가입
-  async signUp(authCredentialDto: AuthCredentialDto): Promise<void> {
+  async signUp(authCredentialDto : AuthCredentialDto): Promise<void> {
     return this.userRepository.createUser(authCredentialDto);
   }
+
+  // 로그인
+  // async signIn(authLoginDto: AuthLoginDto): Promise<{accessToken: string}> {
+  //   const { username, password } = authLoginDto;
+  //   // username으로 fineOne()을 사용해서 해당 유저가 존재하는지 확인후 결과값 user에 저장
+  //   const user = await this.userRepository.findOne({ where: { username }})
+  //
+  //   // 해쉬된 비밀번호를 비교하기 위해서 bcrypt의 compare() 메소드사용
+  //   if (user && (await bcrypt.compare(password, user.password))) {
+  //     // 차량 정보 가져오기
+  //     const vehicleInfo = await this.vehicleInfoRepository.findVehicleInfoByUserId(user.id);
+  //
+  //     // 유저 토큰 생성 (Secret + Payload) 가 필요하다.
+  //     const payload = { id: user.id, username, role: user.role, vehicleInfo: vehicleInfo || null}; // payload에는 중요한 정보를 넣어두면안됨 토큰을 사용해서 정보를 가져갈 수 있기때문에
+  //     const accessToken = await this.jwtService.sign(payload);
+  //
+  //     return { accessToken };
+  //   } else {
+  //     throw new UnauthorizedException('login failed');
+  //   }
+  // }
 
   // 로그인
   async signIn(
     authLoginDto: AuthLoginDto,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const { name, password } = authLoginDto;
-    const user = await this.validateToken(name, password);
-    const tokens = await this.getTokens({ id: user.id });
+    const { username, password } = authLoginDto;
+    const user = await this.validateToken(username, password);
+    const tokens = await this.getTokens({ id: user.id});
     await this.saveRefreshToken(user.id, tokens.refreshToken);
 
     return tokens;
   }
 
   async refreshToken(
-    user: User,
+    user: Users,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const payload = { id: user.id };
+    const payload = { id: user.id};
     const accessTokenExpiresIn = parseInt(
       this.configService.get<string>('JWT_ACCESS_EXPIRATION'),
       10,
@@ -67,8 +84,8 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  async getProfile(user: User): Promise<{
-    name: string;
+  async getProfile(user: Users): Promise<{
+    username: string;
     email: string;
     phoneNumber: string;
     role: string;
@@ -89,11 +106,11 @@ export class AuthService {
     }
     const vehicleInfo =
       userWithProfile.role === 'driver'
-        ? await this.vehicleRepository.findVehicleByUserId(user.id)
+        ? await this.vehicleInfoRepository.findVehicleInfoByUserId(user.id)
         : null;
 
     return {
-      name: userWithProfile.name,
+      username: userWithProfile.username,
       email: userWithProfile.email,
       phoneNumber: userWithProfile.phoneNumber,
       role: userWithProfile.role,
@@ -103,15 +120,15 @@ export class AuthService {
       },
       vehicleInfo: vehicleInfo
         ? {
-            model: vehicleInfo.vehicleModel,
-            licensePlate: vehicleInfo.licensePlate,
-            seatingCapacity: vehicleInfo.seatingCapacity,
-          }
+          model: vehicleInfo.vehicleModel,
+          licensePlate: vehicleInfo.licensePlate,
+          seatingCapacity: vehicleInfo.seatingCapacity,
+        }
         : null,
     };
   }
 
-  private async getTokens(payload: { id: number }) {
+  private async getTokens(payload: { id: number}) {
     const jwtSecret = this.configService.get<string>('JWT_SECRET');
     if (!jwtSecret)
       throw new InternalServerErrorException(
@@ -139,8 +156,8 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  private async validateToken(name: string, password: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { name } });
+  private async validateToken(username: string, password: string): Promise<Users> {
+    const user = await this.userRepository.findOne({ where: { username } });
     if (!user || !(await bcrypt.compare(password, user.password))) {
       throw new UnauthorizedException(
         '아이디 또는 비밀번호가 일치하지 않습니다.',
@@ -161,7 +178,7 @@ export class AuthService {
     }
   }
 
-  async deleteRefreshToken(user: User) {
+  async deleteRefreshToken(user: Users) {
     try {
       console.log("user ", user.refreshToken);
       await this.userRepository.update(user.id, { refreshToken: null });
@@ -170,4 +187,6 @@ export class AuthService {
       throw new InternalServerErrorException();
     }
   }
+
+
 }

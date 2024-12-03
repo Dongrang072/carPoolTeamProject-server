@@ -7,17 +7,17 @@ import {
   OneToOne,
   JoinColumn,
 } from 'typeorm';
-import { User } from './user.entity';
-import { Vehicle } from './vehicle.entity';
+import { Users } from "./users.entity";
+import { VehicleInfo } from "./vehicle-info.entity";
 
 @Entity('profiles')
 export class Profile extends BaseEntity {
   @PrimaryColumn({ name: 'user_id', type: 'int' })
   userId: number;
 
-  @OneToOne(() => User, (user) => user.profile, { onDelete: 'CASCADE' })
+  @OneToOne(() => Users, (user) => user.profile, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
-  user: User;
+  user: Users;
 
   @Column({
     name: 'profile_picture',
@@ -34,7 +34,7 @@ export class Profile extends BaseEntity {
   })
   bio: string;
 
-  @OneToOne(() => Vehicle, { nullable: true, onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'user_id' })
-  vehicle: Vehicle | null;
+  // @OneToOne(() => VehicleInfo, { nullable: true, onDelete: 'CASCADE' })
+  // @JoinColumn({ name: 'user_id' })
+  // vehicle: VehicleInfo | null;
 }

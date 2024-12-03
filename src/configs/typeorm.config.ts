@@ -9,6 +9,6 @@ export const typeORMConfig = (configService: ConfigService): TypeOrmModuleOption
   password: configService.get<string>('DB_PASSWORD'),
   database: configService.get<string>('DB_DATABASE'),
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-  synchronize: false,
+  synchronize: true,
   logging: true  // 로깅 추가하여 쿼리 확인
 });

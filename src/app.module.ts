@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { typeORMConfig } from "./configs/typeorm.config";
 import { MailModule } from './mail/mail.module';
 import { JwtConfigModule } from './jwt-config/jwt-config.module';
 import { MatchingModule } from './matching/matching.module';
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { ChatModule } from './chat/chat.module';
+import { ReviewsModule } from './reviews/reviews.module';
 
 @Module({
   imports: [
@@ -21,7 +23,9 @@ import { MatchingModule } from './matching/matching.module';
     AuthModule,
     MailModule,
     JwtConfigModule,
-    MatchingModule
+    MatchingModule,
+    ChatModule,
+    ReviewsModule
   ],
 })
 export class AppModule {}

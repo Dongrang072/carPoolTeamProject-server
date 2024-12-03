@@ -1,105 +1,76 @@
-import { Controller, Post, Get, Body, Param, HttpException, HttpStatus, Headers, Logger } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { Controller, Post, Body, Req, UseGuards } from '@nestjs/common';
 import { MatchingService } from './matching.service';
-import { MatchingRequest } from './matching.interface';
+import { MatchingRequestDto } from './dto/matching-request.dto';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('matching')
 export class MatchingController {
-  private readonly logger = new Logger(MatchingController.name);
+  constructor(private readonly matchingService: MatchingService) {}
 
-  constructor(
-    private readonly matchingService: MatchingService,
-    private readonly jwtService: JwtService
-  ) {}
+  // 매칭 요청
+  @Post('/request')
+  @UseGuards(AuthGuard('jwt')) // JWT 인증 적용
+  async requestMatch(@Body() matchRequestDto: MatchingRequestDto, @Req() req) {
+    const user = req.user;
+    console.log(user.username);
+    await this.matchingService.addMatchRequest(matchRequestDto, user);
 
-  private decodeToken(authHeader: string) {
-    try {
-      const token = authHeader.split(' ')[1]; // Bearer token 형식에서 token 부분만 추출
-      const decoded = this.jwtService.decode(token);
-      return decoded;
-    } catch (error) {
-      this.logger.error('토큰 디코딩 실패:', error);
-      return null;
-    }
+    return { message: '매칭 요청이 성공적으로 처리되었습니다.' };
   }
 
-  @Post('request')
-  async requestMatching(
-    @Headers('authorization') authHeader: string,
-    @Body() request: MatchingRequest
-  ) {
-    try {
-      this.logger.log('=== 매칭 요청 받음 ===');
-
-      // 토큰 디코딩 및 페이로드 로깅
-      const decodedToken = this.decodeToken(authHeader);
-      this.logger.log('Token Payload:', JSON.stringify(decodedToken, null, 2));
-
-      // 요청 데이터 로깅
-      this.logger.log('Request Data:', {
-        startPoint: request.startPoint,
-        endPoint: request.endPoint,
-        requestTime: request.requestTime,
-        userId: decodedToken?.id  // 토큰에서 추출한 사용자 ID
-      });
-
-      return await this.matchingService.createMatching(request);
-    } catch (error) {
-      this.logger.error('매칭 요청 처리 중 에러 발생:', error);
-      throw new HttpException(
-        error.message || '매칭 요청 처리 중 오류가 발생했습니다.',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
+  // 매칭 취소
+  @Post('/cancel')
+  @UseGuards(AuthGuard('jwt')) // JWT 인증 적용
+  async cancelMatch(@Body("key")key: string, @Req() req) {
+    const user = req.user;
+    await this.matchingService.cancelMatching(key, user); // 서비스의 취소 로직 호출
+    return { message: `${key} 큐에서 매칭이 취소되었습니다.` };
   }
 
-  @Post('cancel/:matchId')
-  async cancelMatching(
-    @Headers('authorization') authHeader: string,
-    @Param('matchId') matchId: string
-  ) {
-    try {
-      this.logger.log('=== 매칭 취소 요청 받음 ===');
-
-      const decodedToken = this.decodeToken(authHeader);
-      this.logger.log('Token Payload:', JSON.stringify(decodedToken, null, 2));
-      this.logger.log('Cancel Request:', {
-        matchId,
-        userId: decodedToken?.id
-      });
-
-      return await this.matchingService.cancelMatching(matchId);
-    } catch (error) {
-      this.logger.error('매칭 취소 처리 중 에러 발생:', error);
-      throw new HttpException(
-        error.message || '매칭 취소 처리 중 오류가 발생했습니다.',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
+  // 매칭 상태 확인 요청
+  @Post('/status')
+  @UseGuards(AuthGuard('jwt')) // JWT 인증 적용
+  async getMatchingStatus(@Body('key') key: string, @Req() req) {
+    const user = req.user;
+    const status = await this.matchingService.getMatchingStatus(user, key);
+    return { status }; // 정수 값 반환
   }
 
-  @Get('status/:matchId')
-  async getMatchingStatus(
-    @Headers('authorization') authHeader: string,
-    @Param('matchId') matchId: string
-  ) {
-    try {
-      this.logger.log('=== 매칭 상태 조회 요청 받음 ===');
 
-      const decodedToken = this.decodeToken(authHeader);
-      this.logger.log('Token Payload:', JSON.stringify(decodedToken, null, 2));
-      this.logger.log('Status Request:', {
-        matchId,
-        userId: decodedToken?.id
-      });
-
-      return await this.matchingService.getMatchingStatus(matchId);
-    } catch (error) {
-      this.logger.error('매칭 상태 확인 중 에러 발생:', error);
-      throw new HttpException(
-        error.message || '매칭 상태 확인 중 오류가 발생했습니다.',
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
+  // 방 나가기
+  @Post('/leave')
+  @UseGuards(AuthGuard('jwt')) // JWT 인증 적용
+  async leaveMatch(@Body('rideRequestId') rideRequestId: number, @Req() req) {
+    const user = req.user;
+    await this.matchingService.leaveMatch(user, rideRequestId);
+    return { message: '매칭그룹에서 성공적으로 나갔습니다.' };
   }
+
+  // 운행동의(시작)
+  @Post('/agree')
+  @UseGuards(AuthGuard('jwt'))
+  async agreeToStartRide(@Body('rideRequestId') rideRequestId: number, @Req() req) {
+    const user = req.user;
+    await this.matchingService.agreeToStartRide(user, rideRequestId);
+    return { message: '운행 동의가 처리되었습니다.' };
+  }
+
+  // 운행완료
+  @Post('/complete')
+  @UseGuards(AuthGuard('jwt'))
+  async completeRide(@Body('rideRequestId') rideRequestId: number, @Req() req) {
+    const user = req.user;
+    await this.matchingService.completeRide(user, rideRequestId);
+    return { message: '운행이 완료되었습니다.' };
+  }
+
+  // 강퇴
+  @Post('/kick')
+  @UseGuards(AuthGuard('jwt')) // JWT 인증 적용
+  async kickPassenger(@Body('passengerId') passengerId: number, @Req() req) {
+    const driver = req.user;
+    await this.matchingService.kickPassenger(driver, passengerId);
+    return { message: `탑승자 ID ${passengerId}를 강퇴하였습니다.` };
+  }
+
 }

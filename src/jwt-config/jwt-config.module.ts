@@ -1,4 +1,3 @@
-// jwt-config.module.ts
 import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
@@ -6,8 +5,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
+    // Passport 모듈 등록
     PassportModule.register({ defaultStrategy: 'jwt' }),
 
+    // JWT 모듈 등록
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

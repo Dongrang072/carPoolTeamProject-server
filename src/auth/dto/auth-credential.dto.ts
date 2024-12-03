@@ -22,7 +22,7 @@ export class AuthCredentialDto {
   @IsString()
   @MinLength(4)
   @MaxLength(20)
-  name: string;
+  username: string;
 
   @IsString()
   @MinLength(4)
