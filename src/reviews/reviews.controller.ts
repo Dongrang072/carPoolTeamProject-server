@@ -25,4 +25,10 @@ export class ReviewsController {
     async getDriverReviews(@Param('id') driverId: number) {
         return this.reviewsService.getDriverReviews(driverId);
     }
+    @Get('/all')
+    @UseGuards(AuthGuard('jwt'))
+    async getAllReviews() {
+        return this.reviewsService.getAllReviews();
+    }
+
 }

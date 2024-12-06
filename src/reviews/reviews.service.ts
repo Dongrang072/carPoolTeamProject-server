@@ -81,7 +81,7 @@ export class ReviewsService {
     }
 
     async getDriverReviews(driverId: number): Promise<{ reviews: { reviewer: string, rating: number, createdAt: Date }[], averageRating: number }> {
-        // id가 driver인지 확인 
+        // id가 driver인지 확인
         const driver = await this.usersRepository.findOne({ where: { id: driverId } });
         if (!driver || driver.role !== 'driver') {
             throw new BadRequestException('요청한 ID는 driver가 아닙니다.');
@@ -117,4 +117,31 @@ export class ReviewsService {
 
         return { reviews: transformedReviews, averageRating };
     }
+
+    async getAllReviews(): Promise<{ reviews: { reviewer: string, target: string, rating: number, createdAt: Date }[], totalCount: number, averageRating: number }> {
+        const reviews = await this.reviewsRepository.find({
+            relations: ['reviewer', 'target'],
+            order: {
+                created_at: 'DESC'
+            }
+        });
+
+        const transformedReviews = reviews.map(review => ({
+            reviewer: review.reviewer.username,
+            target: review.target.username,
+            rating: review.rating,
+            createdAt: review.created_at,
+        }));
+
+        const averageRating = reviews.length > 0
+          ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+          : 0;
+
+        return {
+            reviews: transformedReviews,
+            totalCount: reviews.length,
+            averageRating: Number(averageRating.toFixed(1))
+        };
+    }
+
 }

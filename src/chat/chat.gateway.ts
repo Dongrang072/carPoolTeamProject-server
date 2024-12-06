@@ -10,7 +10,7 @@ import { ChatService } from './chat.service';
 import { Injectable } from '@nestjs/common';
 
 //devlop branch내용
-@WebSocketGateway(81, { namespace: 'chatroom' })
+@WebSocketGateway({ namespace: 'chatroom' }) // ,81 port default
 @Injectable()
 export class ChatGateway {
   constructor(
@@ -29,7 +29,7 @@ export class ChatGateway {
 
       //사용자가 속한 방 확인 및 입장
       const matchedRides = await this.chatService.createChatRoomForMatchedRides();
-    
+
       // 모든 방의 상태가 유효하면 연결
       matchedRides.forEach((roomName) => {
         if (this.chatService.getUsersInRoom(roomName).includes(userId)) {
@@ -107,7 +107,11 @@ export class ChatGateway {
           // 방에 메시지 브로드캐스트
           this.server.to(room).emit('message', payload);
           console.log(`{ (${room}) user_Id [${userId}] } : `, payload);
-
+        // this.chatService.addMessageToLog(room, { name: userName, message });
+        // const currentLogs = this.chatService.getMessageLogs(room);
+        //
+        // this.server.to(room).emit('message', payload);
+        // this.server.to(room).emit('messageLog', { room, logs: currentLogs });
       } catch (error) {
           console.error(error.message);
           client.emit('error', { message: error.message });
@@ -115,32 +119,73 @@ export class ChatGateway {
   }
 
   @SubscribeMessage('leave')
-  leaveRoom(
+  async leaveRoom(
     @MessageBody() room: string, //room만 전달받음
     @ConnectedSocket() client: Socket,
   ) {
     const userId = client.data.userId; // handleConnection에서 저장된 userId 활용
-    const userName = this.chatService.getUserNameById(userId);
 
     try {
       this.chatService.validateRoomAndUser(room, userId);
-      this.chatService.removeUserFromRoom(room, userId);
+      const rideRequestId = parseInt(room.replace('ride_request_', ''), 10);
+      const rideRequest = await this.chatService.getRideRequestById(rideRequestId);
+      const isDriver = rideRequest?.driver?.id === userId;
+      const userName = await this.chatService.getUserNameById(userId);
 
-      if (this.chatService.getUsersInRoom(room).length === 0) {
+      if(isDriver) {
+        const usersInRoom = this.chatService.getUsersInRoom(room);
+        this.server.to(room).emit('driverLeft', {
+          message: '드라이버가 채팅방을 나갔습니다. 카풀 모집이 취소됩니다.',
+        });
+
+
+        const socketsInRoom = this.server.sockets.adapter.rooms.get(room);
+        if (socketsInRoom) {
+          socketsInRoom.forEach((socketId) => {
+            const socket = this.server.sockets.sockets.get(socketId);
+            if (socket && usersInRoom.includes(socket.data.userId)) {
+              socket.leave(room);
+              socket.disconnect(true);
+            }
+          });
+        }
         this.chatService.deleteRoom(room);
         this.chatService.deleteMessage(room);
+        console.log(`driver user_Name[${userName}] left room [${room}].`);
+        return;
+      } else {
+        this.chatService.removeUserFromRoom(room, userId);
+
+        if (this.chatService.getUsersInRoom(room).length === 0) {
+          this.chatService.deleteRoom(room);
+          this.chatService.deleteMessage(room);
+        } else {
+          const updatedUserList = this.chatService.getUsersInRoom(room);
+          // 사용자 목록 업데이트를 클라이언트로 전송
+          const userDetails = await Promise.all(
+            updatedUserList.map(async (id) => {
+              const name = await this.chatService.getUserNameById(id);
+              const role = await this.chatService.getUserRoleById(id);
+              return {
+                name: name || `Unknown(${id})`,
+                role: role || 'Unknown',
+              };
+            }),
+          );
+          this.server.to(room).emit('userList', { room, users: userDetails });
+        }
+
+        client.leave(room);
+        const leaveMessage = `탑승자 ${userName}이/가 매칭 이탈 및 채팅방을 나갔습니다`;
+        this.server.to(room).emit('leaveRoom', { room, message: leaveMessage, userName });
+
+        // const updatedUserList = this.chatService.getUsersInRoom(room);
+        // if (updatedUserList.length > 0) {
+        //   this.server.to(room).emit('userList', { room, users: updatedUserList });
+        // }
+
+        console.log(`passenger user_Name[${userName}] left room [${room}].`);
       }
-
-      client.leave(room);
-      const leaveMessage = `User user_Name${userName} has left the room.`;
-      this.server.to(room).emit('leaveRoom', { room, message: leaveMessage });
-
-      const updatedUserList = this.chatService.getUsersInRoom(room);
-      if (updatedUserList.length > 0) {
-        this.server.to(room).emit('userList', { room, users: updatedUserList });
-      }
-
-      console.log(`user_Name[${userName}] left room [${room}].`);
     } catch (error) {
       console.error(error.message);
       client.emit('error', { message: error.message });
@@ -198,6 +243,7 @@ async getUserList(
       const logs = this.chatService.getMessageLogs(room);
       client.emit('messageLog', { room, logs });
       console.log(`Message log for room [${room}]:`, logs);
+      console.log("Message log Array for [${room}]:", logs);
     } catch (error) {
       console.error(error.message);
       client.emit('error', { message: error.message });
